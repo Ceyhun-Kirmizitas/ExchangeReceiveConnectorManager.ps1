@@ -174,6 +174,10 @@ Version 1.0 was validated with live Clone and Restore scenarios including clean 
 
 Always review the generated plan before using `-ApplyChanges`, and test the script in your environment before production use.
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md).
+
 ## Feedback and issues
 
 For bugs, feedback, or feature requests, use [GitHub Issues](https://github.com/Ceyhun-Kirmizitas/ExchangeReceiveConnectorManager.ps1/issues).
