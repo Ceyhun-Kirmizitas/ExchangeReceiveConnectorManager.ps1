@@ -1,19 +1,38 @@
 # Changelog
 
-All notable changes to **ExchangeReceiveConnectorManager.ps1** are documented here.
+Changes to **ExchangeReceiveConnectorManager.ps1**.
+
+## 1.1 - 2026-10-29
+
+### New Features
+- Added **RemoteIPRanges Merge Only** to add source IP ranges to an existing target connector without changing other settings.
+- Added read-only **`-CheckRelay`** to review anonymous and externally secured relay configuration without testing mail flow.
+
+### Changes
+- Clone and cross-server Restore now preserve existing target **Bindings**. Same-server Restore still manages Bindings.
+- Known binding problems now mark only the affected connector as **MANUAL**. Apply returns exit code **2** when manual work remains.
+- With `-IncludeAnonymousRelayPermissions`, an explicit Deny on the source or target connector now blocks Apply.
+- Failed anonymous relay verification now returns exit code **1**.
+- The start prompt now accepts only ENTER to start or Q to quit.
+
+### Improvements
+- Clearer Bindings and anonymous relay information in Preview and Apply results.
+- Restore now identifies same-server and cross-server operations.
+- Improved console messages, help, and Feedback / Bugs / Contact information.
+
+### Bug Fixes
+- Fixed Clone and Restore failures caused by server-specific Receive Connector Bindings.
+- Fixed source drift checks blocking Apply when unrelated connectors changed while `-ConnectorName` was used.
 
 ## 1.0 - 2026-09-27
 
-- Initial release of ExchangeReceiveConnectorManager.ps1.
-- Added local and multi-server Receive Connector review with human-readable TXT reporting and structured JSON backup.
-- Added live server-to-server Clone Preview and JSON-based Restore Preview with explicit `-ApplyChanges` for changes.
-- Added custom connector creation and supported property alignment for existing connectors.
-- Added optional alignment of existing built-in connectors with `-IncludeBuiltIn`; built-in connectors are never created or deleted.
-- Added explicit Receive Connector AD permission inventory and optional anonymous relay alignment with `-IncludeAnonymousRelayPermissions`.
-- Added target binding, TLS certificate, connector-type, and name-collision safety validation.
-- Added refreshed pre-apply planning, drift detection, automatic target pre-change JSON snapshots, and post-apply verification.
-- Added whole-plan BLOCKER handling so Apply stops before any change when a selected connector is unsafe to process.
-- New custom connectors are created disabled, configured while disabled, and enabled only after all managed settings and permissions succeed.
-- Missing backup properties are treated as unavailable so existing target values are preserved instead of being cleared.
-- Added Windows PowerShell 5.1 compatibility handling for Exchange Management Shell initialization, remoting serialization, null/empty values, flags, and collections.
-- Added startup safety information, console paging, `-NoPaging`, built-in `-Help`, and comment-based help examples.
+### New Features
+- Initial release with Receive Connector Review, Backup, Clone, and Restore.
+- Added TXT reports, JSON backups, and explicit AD permission inventory.
+- Added Preview-first Clone and Restore, with `-ApplyChanges` required to make changes.
+- Added custom connector creation and optional alignment of existing built-in connectors.
+- Added optional anonymous relay permission management.
+- Added safety checks for Bindings, TLS certificates, connector conflicts, and incomplete backups.
+- Added pre-change snapshots, drift detection, and post-change verification.
+- New connectors are configured disabled and enabled after successful configuration.
+- Added Windows PowerShell 5.1 compatibility handling, startup guidance, console paging, and help.

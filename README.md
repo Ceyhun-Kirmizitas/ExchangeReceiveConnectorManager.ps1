@@ -1,188 +1,112 @@
 # ExchangeReceiveConnectorManager.ps1
 
-PowerShell tool for reviewing, backing up, cloning, and restoring **Exchange Server Receive Connector** configuration.
+A Windows PowerShell 5.1 tool for reviewing, backing up, cloning, restoring, and managing **Exchange Server Receive Connectors**. Useful when moving to new Exchange servers, replacing a server, or reviewing relay configuration.
 
-The script is designed for side-by-side Exchange deployments, upgrades, migrations, and replacement-server work. Review and Backup are read-only. Clone and Restore are preview-only by default and require `-ApplyChanges` before any supported configuration change is made.
+[Download the script](ExchangeReceiveConnectorManager.ps1) · [Changelog](CHANGELOG.md) · [Report an issue](https://github.com/Ceyhun-Kirmizitas/ExchangeReceiveConnectorManager.ps1/issues)
 
-## Download
+## What it does
 
-- [ExchangeReceiveConnectorManager.ps1](ExchangeReceiveConnectorManager.ps1)
-- [Raw download](https://raw.githubusercontent.com/Ceyhun-Kirmizitas/ExchangeReceiveConnectorManager.ps1/main/ExchangeReceiveConnectorManager.ps1)
-
-## Modes
-
-### Review / Backup
-
-Reads Receive Connector configuration from one or more Exchange Mailbox servers.
-
-When `-OutputFile` is used, the script creates:
-
-- a TXT report for human review
-- a versioned JSON backup for Restore operations
-
-No Exchange configuration changes are made.
-
-### Clone
-
-Uses a live Exchange server as the source and compares selected Receive Connectors with one or more target servers.
-
-Clone is preview-only unless `-ApplyChanges` is specified.
-
-### Restore
-
-Reads a JSON backup created by this script and compares it with a target Exchange server.
-
-Restore is preview-only unless `-ApplyChanges` is specified. TXT reports are not accepted for Restore.
-
-## Managed configuration
-
-The inventory and managed configuration scope includes:
-
-- Built-in vs custom connector classification
-- Enabled
-- Bindings
-- RemoteIPRanges
-- Fqdn
-- AuthMechanism
-- PermissionGroups
-- RequireTLS
-- TlsCertificateName
-- TlsDomainCapabilities
-- ProtocolLoggingLevel
-- MaxMessageSize
-- Banner
-- TransportRole
-- Explicit Receive Connector AD permissions for inventory and review
-- Anonymous relay state based on `ms-Exch-SMTP-Accept-Any-Recipient` for `NT AUTHORITY\ANONYMOUS LOGON`
-
-## Safety behavior
-
-- Review and Backup are read-only.
-- Clone and Restore are preview-only by default.
-- Changes require the explicit `-ApplyChanges` switch.
-- Custom Receive Connectors are in Clone and Restore scope by default.
-- Built-in Receive Connectors are never created or deleted.
-- `-IncludeBuiltIn` allows supported alignment of existing built-in connectors.
-- Source and target connector types must match.
-- Source-specific binding IP addresses must be verifiable on the target before that connector can be changed.
-- A non-empty `TlsCertificateName` is not applied unless the required valid SMTP certificate is available on the target.
-- Any BLOCKER aborts the entire Apply operation before any selected connector is changed.
-- Missing backup properties are treated as unavailable rather than empty, so existing target values are preserved.
-- Server-specific built-in connector FQDN values are translated from source server FQDN to target server FQDN.
-- Explicit Receive Connector AD permissions are review-only except for anonymous relay when `-IncludeAnonymousRelayPermissions` is used.
-- Target state is refreshed before Apply.
-- A pre-change JSON snapshot of the target is saved immediately before mutation.
-- Apply aborts if target connector state changes after the refreshed plan is displayed.
-- New custom connectors are created disabled, configured while disabled, and enabled only after managed settings and permissions succeed.
-- Apply stops on the first runtime connector error and then verifies the final target state.
-
-## Parameters
-
-| Parameter | Description |
+| Mode | Purpose |
 |---|---|
-| `-Server` | One or more Exchange Mailbox servers to review. |
-| `-SourceServer` | Live source server for Clone, or source-server selection for a multi-server Restore backup. |
-| `-TargetServers` | One or more target servers for Clone. |
-| `-RestoreFile` | JSON backup created by this script. |
-| `-TargetServer` | Target server for Restore. |
-| `-ConnectorName` | Optional connector name or built-in connector family filter. Multiple values are supported. |
-| `-IncludeBuiltIn` | Includes existing built-in connectors in supported property alignment. |
-| `-IncludeAnonymousRelayPermissions` | Includes alignment of the explicit anonymous relay right. |
-| `-ApplyChanges` | Applies the displayed Clone or Restore plan. |
-| `-OutputFile` | Saves Review output or Clone/Restore plans to a TXT file. Review also creates the matching JSON backup. |
-| `-NoPaging` | Disables console paging. |
-| `-Help` | Displays the built-in usage guide. |
+| **Review / Backup** | Review Receive Connectors on one or more servers. `-OutputFile` writes a readable TXT report and a JSON backup for Restore. |
+| **Clone** | Compare connectors on a live source server with one or more target servers, then apply supported changes if requested. |
+| **Restore** | Restore supported settings from a JSON backup. Same-server Restore manages Bindings; cross-server Restore preserves existing target Bindings. |
+| **RemoteIPRanges Merge Only** | Add IP ranges from selected custom source connectors to one existing custom target connector. Other settings are not changed. |
+| **CheckRelay** | Read-only review of anonymous and externally secured relay configuration per connector. It does not send mail or test SMTP relay. |
+
+Review, Clone, Restore, and Merge are **preview-only by default**. To change a target, add `-ApplyChanges` and confirm the displayed plan. `-CheckRelay` is always read-only.
 
 ## Examples
 
-Review the local Exchange server:
+Run these commands from a server with the required Exchange permissions. The script can load Exchange Management Shell on an Exchange server.
+
+**Review the local server:**
 
 ```powershell
 .\ExchangeReceiveConnectorManager.ps1
 ```
 
-Review multiple servers:
-
-```powershell
-.\ExchangeReceiveConnectorManager.ps1 -Server EX01,EX02
-```
-
-Create a TXT report and JSON backup:
+**Back up a server (TXT + JSON):**
 
 ```powershell
 .\ExchangeReceiveConnectorManager.ps1 -Server EX01 -OutputFile C:\Temp\EX01-ReceiveConnectors.txt
 ```
 
-Preview cloning custom connectors:
+**Preview cloning connectors to new servers:**
 
 ```powershell
 .\ExchangeReceiveConnectorManager.ps1 -SourceServer EX16-01 -TargetServers EXSE01,EXSE02
 ```
 
-Apply a reviewed clone plan for one connector:
+**Clone one connector without copying its explicit anonymous relay AD permission:**
 
 ```powershell
-.\ExchangeReceiveConnectorManager.ps1 -SourceServer EX16-01 -TargetServers EXSE01,EXSE02 -ConnectorName "App Relay" -ApplyChanges
+.\ExchangeReceiveConnectorManager.ps1 -SourceServer EX16-01 -TargetServers EXSE01 -ConnectorName "App Relay" -ApplyChanges
 ```
 
-Preview existing built-in connector alignment:
+**Clone with explicit anonymous relay permission handling:**
 
 ```powershell
-.\ExchangeReceiveConnectorManager.ps1 -SourceServer EX16-01 -TargetServers EXSE01 -IncludeBuiltIn
+.\ExchangeReceiveConnectorManager.ps1 -SourceServer EX16-01 -TargetServers EXSE01 -ConnectorName "App Relay" -IncludeAnonymousRelayPermissions -ApplyChanges
 ```
 
-Preview anonymous relay alignment:
+**Preview a Restore to a new server:**
 
 ```powershell
-.\ExchangeReceiveConnectorManager.ps1 -SourceServer EX16-01 -TargetServers EXSE01 -ConnectorName "App Relay" -IncludeAnonymousRelayPermissions
+.\ExchangeReceiveConnectorManager.ps1 -RestoreFile C:\Temp\EX16-01-ReceiveConnectors.json -TargetServer EXSE01
 ```
 
-Preview a Restore operation:
+**Restore a rebuilt server using its JSON backup:**
 
 ```powershell
-.\ExchangeReceiveConnectorManager.ps1 -RestoreFile C:\Temp\EX16-ReceiveConnectors.json -TargetServer EXSE01
+.\ExchangeReceiveConnectorManager.ps1 -RestoreFile C:\Temp\EX01-ReceiveConnectors.json -TargetServer EX01 -ApplyChanges
 ```
 
-Apply a Restore operation:
+**Preview merging IP ranges into an existing connector:**
 
 ```powershell
-.\ExchangeReceiveConnectorManager.ps1 -RestoreFile C:\Temp\ReceiveConnectors.json -SourceServer EX16-01 -TargetServer EXSE01 -ApplyChanges
+.\ExchangeReceiveConnectorManager.ps1 -SourceServer EX16-01 -ConnectorName "App Relay 1","App Relay 2" -TargetServer EXSE01 -TargetConnectorName "App Relay" -RemoteIPRangesMergeOnly
 ```
 
-Built-in help:
+**Review relay configuration on two servers:**
+
+```powershell
+.\ExchangeReceiveConnectorManager.ps1 -CheckRelay -Server EX01,EX02
+```
+
+For full options and additional examples:
 
 ```powershell
 .\ExchangeReceiveConnectorManager.ps1 -Help
-```
-
-Full PowerShell help:
-
-```powershell
 Get-Help .\ExchangeReceiveConnectorManager.ps1 -Full
 ```
 
+## Important behavior
+
+- **Preview before Apply:** Clone, Restore, and Merge require `-ApplyChanges` and confirmation to change anything. An Apply run with `-OutputFile` can still make changes; the file is not a report-only switch.
+- **Bindings:** Existing target Bindings are preserved during Clone and cross-server Restore. Same-server Restore can restore Bindings. Binding problems may require manual action; an unknown safety check may block Apply.
+- **Built-in connectors:** Never created or deleted. Use `-IncludeBuiltIn` only when you want to align existing built-in connectors.
+- **Anonymous relay:** Without `-IncludeAnonymousRelayPermissions`, the explicit AD relay permission is not copied, added, or removed. However, **PermissionGroups** (including `AnonymousUsers`) is still managed and can affect effective relay behavior. With the switch, explicit Allow permissions can be aligned; an explicit Deny blocks Apply.
+- **IP range merge:** The target connector must already exist. Adding IP addresses can give those clients access to permissions already granted on the target connector. Listener overlap and entry-count limits are checked.
+- **Backups:** Restore uses JSON files, not TXT. Before Apply, a fresh JSON snapshot is saved under `ConfigSnapshots` next to the script.
+- **Verification:** New connectors are created disabled and enabled after supported changes succeed. Apply stops on the first connector error and verifies the resulting configuration.
+- **CheckRelay:** Reports configured relay settings and explicit AD permissions; it does not perform an SMTP relay test.
+
+**Exit codes:** For Review/Clone/Restore/Merge: 0 = completed/preview; 1 = error or failed Apply; 2 = Apply completed with MANUAL items. A Preview can return 0 even when BLOCKER or MANUAL items are shown. For CheckRelay: 0 = completed, including findings; 1 = execution error.
+
 ## Requirements
 
-- Exchange Server Mailbox server environment
+- Exchange Server 2016, Exchange Server 2019, or Exchange Server Subscription Edition (Mailbox role)
 - Windows PowerShell 5.1
-- Exchange Management Shell / required Exchange administrative permissions
-- PowerShell remoting for remote server operations
+- Required Exchange administrative permissions and access to the target servers
 
-## Notes
+The tool does not manage Send Connectors, firewall/NAT rules, certificates, or test SMTP delivery. Review the plan and test changes in your environment before production use.
 
-Version 1.0 was validated with live Clone and Restore scenarios including clean creation, existing-connector updates, idempotent re-runs, anonymous relay alignment, disabled connectors, FQDN translation, pre-change snapshots, BLOCKER zero-mutation behavior, and preservation of target values when a backup property is unavailable.
+## Feedback
 
-Always review the generated plan before using `-ApplyChanges`, and test the script in your environment before production use.
+For problems or suggestions, use [GitHub Issues](https://github.com/Ceyhun-Kirmizitas/ExchangeReceiveConnectorManager.ps1/issues).
 
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md).
-
-## Feedback and issues
-
-For bugs, feedback, or feature requests, use [GitHub Issues](https://github.com/Ceyhun-Kirmizitas/ExchangeReceiveConnectorManager.ps1/issues).
-
-Website: [ceyhunkirmizitas.net](https://ceyhunkirmizitas.net/)
+Website: [ceyhunkirmizitas.net](https://ceyhunkirmizitas.net/) · [GitHub](https://github.com/Ceyhun-Kirmizitas) · [LinkedIn](https://www.linkedin.com/in/ceyhun-kirmizitas/)
 
 ## License
 
